@@ -19,6 +19,7 @@ if sys.version_info[0] < 3:
     import tkFileDialog as filedialog
 
 #If we are using python 3.0 or above
+elif sys.version_info[0] >= 3:
     import tkinter as tk
     import tkinter.filedialog as filedialog
 
