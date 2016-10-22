@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Created on Wed Jan 13 14:33:03 2016
@@ -12,6 +13,7 @@ import sys
 import serial
 
 import numpy as np
+import serial.tools.list_ports as lp
 
 #If we are using python 2.7 or under
 if sys.version_info[0] < 3:
@@ -24,22 +26,17 @@ elif sys.version_info[0] >= 3:
     import tkinter.filedialog as filedialog
 
 #%%
-def serial_port_scan():
-   # scan for available ports. return a list of ports 'COM#'
-   available = []
-   for i in range(256):
-       try:
-           s = serial.Serial()
-           s.port = 'COM'+str(i)
-           s.setDTR(False)
-           s.open()
-           available.append(s.portstr)
-           s.close()
-       except serial.SerialException:
-           pass
-   return available
+def find_arduinos():
+    """
+    Function that scans serial ports to look for Arduinos
+    Returns a list containing 'COM' ports as strings
+    If an arduino is not found, return "None"
+    """    
+    ports = list(lp.comports())
 
+    return [port[0] for port in ports if "Arduino" in port[1]]
 #%%
+
 
 class LedControllerGui(tk.Frame):
     
@@ -51,14 +48,14 @@ class LedControllerGui(tk.Frame):
       self.led_freq.set("10")
       self.led_dur.set("5")
            
-      self.coms = serial_port_scan()
+      self.coms = find_arduinos()
       self.opmenu_var = tk.StringVar()
        
       if len(self.coms) >= 1:
           self.opmenu_var.set(self.coms[0])
       else:
           self.app_quit()
-          raise AttributeError("Error! Could not find any open serial ports! Quitting program!")
+          raise AttributeError("Error! Could not find any Arduinos! Quitting program!")
           
    #============== Methods =======================
    def turn_on_leds(self):
@@ -171,7 +168,8 @@ class InitArduino:
     The class is configured with methods to communicate with Arduinos
     loaded with the "opto-blink" or "opto-blink_and_solenoid" sketches
     """
-    def __init__(self, port='COM3', baudrate=115200, timeout=0.05):
+    def __init__(self, port=None, baudrate=250000, timeout=0.05):
+              
         #Initialize the arduino!
         #Doing it this way prevents the serial reset that occurs!
         self.arduino = serial.Serial()
@@ -186,7 +184,7 @@ class InitArduino:
         self.is_on = False
 
         #Arduino state consists of 6 values (LED_freq,LED_PW,SOL1,SOL2,SOL3,SOL4)
-        self.state = '0.00,0.00,0.00,0.00,0.00,0.00'
+        self.state = '0.00,0.00,0,0,0,0,0,0'
 
         #Loop optimizations
         self.arduino_readline = self.arduino.readline
@@ -204,23 +202,24 @@ class InitArduino:
 
     #Avoid using this method on its own, update_state() is far safer!!
     def write(self, values):
+        values = "["+values+"]"
         self.arduino.write(values)
         self.state = self.arduino_readline()
 
     def turn_on_stim(self, led_freq, led_dur):
-        self.arduino.write('{freq},{dur}'.format(freq=led_freq, dur=led_dur))
+        self.arduino.write('[{freq},{dur}]'.format(freq=led_freq, dur=led_dur))
         self.state = self.arduino_readline()
         #if str(arduino_state) == 'ON':
             #self.is_on = True
 
     def turn_off_stim(self):
-        self.arduino.write('0,0')
+        self.arduino.write('[0.00,0.00]')
         self.state = self.arduino_readline()
         #if str(arduino_state) == 'OFF':
             #self.is_on = False
 
     def turn_off_solenoids(self):
-        self.arduino.write('0,0,0,0,0,0')
+        self.arduino.write('[0.00,0.00,0,0,0,0,0,0]')
         self.state = self.arduino_readline()
 
     def close(self):
